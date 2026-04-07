@@ -4,10 +4,13 @@ project(MTPL-Audio VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Add MTPL from submodule
-add_subdirectory(lib/MTPL)
+# Header-only library
+add_library(mtpl INTERFACE)
+target_include_directories(mtpl INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<INSTALL_INTERFACE:include>
+)
 
-# MTPL-Audio library
 add_library(mtpl_audio INTERFACE)
 target_include_directories(mtpl_audio INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
@@ -15,17 +18,46 @@ target_include_directories(mtpl_audio INTERFACE
 )
 target_link_libraries(mtpl_audio INTERFACE mtpl)
 
-# macOS/iOS frameworks
 if(APPLE)
     target_link_libraries(mtpl_audio INTERFACE
-        "-framework CoreAudio"
         "-framework AudioToolbox"
+        "-framework CoreAudio"
         "-framework CoreFoundation"
     )
 endif()
 
-# Tests
+# Tests (optional, only build if this is the main project)
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    add_executable(test_import tests/test_import.cpp)
-    target_link_libraries(test_import mtpl_audio)
+    include(CTest)
+
+    function(add_mtpl_test test_name)
+        add_executable(${test_name} tests/${test_name}.cpp)
+        target_link_libraries(${test_name} PRIVATE mtpl)
+        add_test(NAME ${test_name} COMMAND ${test_name})
+    endfunction()
+
+    function(add_mtpl_audio_test test_name)
+        add_executable(${test_name} tests/${test_name}.cpp)
+        target_link_libraries(${test_name} PRIVATE mtpl_audio)
+        add_test(NAME ${test_name} COMMAND ${test_name})
+    endfunction()
+
+    function(add_mtpl_audio_demo demo_name)
+        add_executable(${demo_name} tests/${demo_name}.cpp)
+        target_link_libraries(${demo_name} PRIVATE mtpl_audio)
+    endfunction()
+
+    add_mtpl_test(test_mtpl_core)
+    add_mtpl_test(test_signal_transform)
+    add_mtpl_test(test_immutability)
+    add_mtpl_test(test_lane_signal_sink)
+
+    add_mtpl_audio_test(test_audio)
+    add_mtpl_audio_test(test_import)
+
+    if(APPLE)
+        add_mtpl_audio_test(test_core_audio)
+        add_mtpl_audio_demo(test_soundscape)
+        add_mtpl_audio_demo(test_clickscape)
+    endif()
 endif()
